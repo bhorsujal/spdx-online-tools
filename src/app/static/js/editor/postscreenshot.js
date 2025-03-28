@@ -50,33 +50,39 @@ async function postToGithub(data) {
             }
         },
         error: function (e) {
-            console.log("ERROR : ", e);
-            $("#modal-header").removeClass("green-modal");
-            try {
-            var obj = JSON.parse(e.responseText);
-            if (obj.type=="error"){
-                $("#modal-header").removeClass("yellow-modal");
-                $("#modal-header").addClass("red-modal");
-                $("#modal-title").html("Error!");
-            }
-            $("#modal-body").text(obj.data);
-            $(".modal-footer").html('<button id="ok"><span class="glyphicon glyphicon-ok"></span> Ok</button>');
-            $("#ok").on("click",function(){
-                $("#myModal").modal("hide");
-                $(".modal-footer").html("");
-            })
-            }
-            catch (e){
-                $("#modal-header").removeClass("yellow-modal");
-                $("#modal-header").addClass("red-modal");
-                $("#modal-title").html("Error!");
-                $("#modal-body").text("The application could not be connected. Please try later.");
-            }
-            $("#myModal").modal({
-                backdrop: 'static',
-                keyboard: true,
-                show: true
-            });
+          console.log("ERROR : ", e);
+          $("#modal-header").removeClass("green-modal");
+          try {
+              var obj = JSON.parse(e.responseText);
+
+              // The server sets: data["type"] = "error"
+              if (obj.data && obj.data.type === "error") {
+                  $("#modal-header").removeClass("yellow-modal");
+                  $("#modal-header").addClass("red-modal");
+                  $("#modal-title").html("Error!");
+              }
+
+              // Show the server's error message in the modal
+              $("#modal-body").text(obj.message);
+
+              $(".modal-footer").html('<button id="ok"><span class="glyphicon glyphicon-ok"></span> Ok</button>');
+              $("#ok").on("click", function() {
+                  $("#myModal").modal("hide");
+                  $(".modal-footer").html("");
+              });
+          }
+          catch (ex) {
+              // If we cannot parse e.responseText or something else fails
+              $("#modal-header").removeClass("yellow-modal");
+              $("#modal-header").addClass("red-modal");
+              $("#modal-title").html("Error!");
+              $("#modal-body").text("The application could not be connected. Please try later.");
+          }
+          $("#myModal").modal({
+              backdrop: 'static',
+              keyboard: true,
+              show: true
+          });
         }
     });
   return fileurl;
