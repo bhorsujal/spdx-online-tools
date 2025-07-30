@@ -19,7 +19,7 @@ APP_DIR = os.path.join(BASE_DIR,'app')
 API_DIR = os.path.join(BASE_DIR,'api')
 TEMPLATE_DIR = os.path.join(APP_DIR, 'templates')
 STATIC_PATH = os.path.join(APP_DIR,'static')
-STATIC_ROOT = STATIC_PATH
+# STATIC_ROOT will be set later after DEBUG is defined
 EXAMPLES_DIR = os.path.join(BASE_DIR,'examples')
 
 LICENSE_PROD_REPO_NAME = "license-list-XML"
@@ -64,6 +64,10 @@ if not DEBUG:
     SECURE_SSL_REDIRECT = True
     SOCIAL_AUTH_REDIRECT_IS_HTTPS = True
     USE_X_FORWARDED_HOST = True
+    # In production, collect static files to a separate directory
+    STATIC_ROOT = '/spdx/static_collected'
+else:
+    STATIC_ROOT = STATIC_PATH
 
 
 # Application definition
@@ -197,9 +201,11 @@ Remove STATIC_ROOT from STATICFILES_DIRS: Ensure that STATICFILES_DIRS does not 
 You should only list directories that are not already covered by STATIC_ROOT.
 """
 
-# STATICFILES_DIRS = [
-# 	STATIC_PATH,
-# ]
+# In production, tell Django where to find static files for collection
+if not DEBUG:
+    STATICFILES_DIRS = [
+        STATIC_PATH,
+    ]
 
 # Media files (Downloadable files)
 
