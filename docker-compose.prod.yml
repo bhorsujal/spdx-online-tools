@@ -13,7 +13,7 @@ services:
       - ./data/nginx:/etc/nginx/conf.d
       - ./data/certbot/conf:/etc/letsencrypt
       - ./data/certbot/www:/var/www/certbot
-      - static_volume:/spdx/src/app/static
+      - static_volume:/spdx/static_collected
       - media_volume:/spdx/src/app/media
     depends_on:
       - spdx
@@ -37,7 +37,7 @@ services:
       - 8000
     volumes:
       - ./container_logs:/spdx/container_logs
-      - static_volume:/spdx/src/app/static
+      - static_volume:/spdx/static_collected
       - media_volume:/spdx/src/app/media
     env_file: spdx-prod.env
     environment:
