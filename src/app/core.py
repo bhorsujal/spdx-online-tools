@@ -1,6 +1,7 @@
 """This file contains the core logic used in the SPDX Online Tools' APP and API"""
 
 import jpype
+import subprocess
 import os
 import sys
 
@@ -209,32 +210,95 @@ def ntia_check_helper(request):
             """ Get other request parameters """
             # compliance = request.POST.get("compliance", "ntia")  # Default: "ntia"
             """ Call the Python SBOM Checker """
-            schecker = SbomChecker(str(settings.APP_DIR + uploaded_file_url))
-            # schecker = SbomChecker(str(settings.APP_DIR + uploaded_file_url), compliance=compliance)  # Post-3.0.2
-            oldStdout = sys.stdout
-            tempstdout = StringIO()
-            sys.stdout = tempstdout
-            schecker.print_components_missing_info()
-            schecker.print_table_output()
-            sys.stdout = oldStdout
-            retval = tempstdout.getvalue().replace(",",", ").replace("\n","<br/>")
-            if not retval.startswith("No components with missing information."):
-                """ If any warnings are returned """
+            try:
+                schecker = SbomChecker(str(settings.APP_DIR + uploaded_file_url))
+            except Exception as ex:
+                # Parsing failed (e.g. malformed RDF/XML). Return a concise message.
                 if (request.is_ajax()):
-                    ajaxdict["type"] = "warning"
-                    warnings = str(retval)
-                    ajaxdict["data"] = "The following warning(s) were raised:<br />\n" + warnings.replace('\n', '<br />\n')
+                    ajaxdict["type"] = "error"
+                    ajaxdict["data"] = (
+                        "Could not parse the SBOM file. Please upload a valid SPDX 2.x document "
+                        "(JSON, RDF/XML, Tag/Value, or Spreadsheet).\nDetails: " + str(ex)
+                    )
                     response = dumps(ajaxdict)
                     result['response'] = response
                     result['status'] = 400
                     return result
-                context_dict["error"] = retval
+                context_dict["error"] = "Could not parse the SBOM file. Details: " + str(ex)
                 result['context'] = context_dict
                 result['status'] = 400
                 return result
+            is_compliant = getattr(schecker, 'compliant', None)
+            # Prefer HTML output if available (newer ntia-conformance-checker)
+            html_output = None
+            try:
+                # Some versions expose a render method or an output formatter
+                if hasattr(schecker, 'get_html_output'):
+                    html_output = schecker.get_html_output()
+                elif hasattr(schecker, 'render'):
+                    html_output = schecker.render(output_format='html')
+                elif hasattr(schecker, 'print_html_output'):
+                    # Capture print_html_output() into a string
+                    oldStdout = sys.stdout
+                    tempstdout = StringIO()
+                    sys.stdout = tempstdout
+                    schecker.print_html_output()
+                    sys.stdout = oldStdout
+                    html_output = tempstdout.getvalue()
+                elif True:
+                    # Try CLI as a fallback to get HTML output
+                    completed = subprocess.run(
+                        [sys.executable, '-m', 'ntia_conformance_checker.cli', '--file', str(settings.APP_DIR + uploaded_file_url), '--output', 'html'],
+                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=60
+                    )
+                    if completed.stdout:
+                        html_output = completed.stdout
+            except Exception:
+                html_output = None
+
+            if html_output is None:
+                # Fallback to legacy stdout scraping
+                oldStdout = sys.stdout
+                tempstdout = StringIO()
+                sys.stdout = tempstdout
+                schecker.print_components_missing_info()
+                schecker.print_table_output()
+                sys.stdout = oldStdout
+                retval = tempstdout.getvalue().replace(",",", ").replace("\n","<br/>")
+                if not retval.startswith("No components with missing information."):
+                    if (request.is_ajax()):
+                        ajaxdict["type"] = "warning"
+                        warnings = str(retval)
+                        ajaxdict["data"] = "The following warning(s) were raised:<br />\n" + warnings.replace('\n', '<br />\n')
+                        response = dumps(ajaxdict)
+                        result['response'] = response
+                        result['status'] = 400
+                        return result
+                    context_dict["error"] = retval
+                    result['context'] = context_dict
+                    result['status'] = 400
+                    return result
+                if (request.is_ajax()):
+                    ajaxdict["data"] = "This SPDX Document is valid:\n" + retval
+                    response = dumps(ajaxdict)
+                    result['response'] = response
+                    result['status'] = 200
+                    return result
+                message = "This SPDX Document is valid."
+                result['message'] = message
+                result['status'] = 200
+                return result
+
+            # HTML path: parse minimal status from checker if available; otherwise, send HTML directly
             if (request.is_ajax()):
-                """ Valid SPDX Document """
-                ajaxdict["data"] = "This SPDX Document is valid:\n" + retval
+                if is_compliant is False:
+                    ajaxdict["type"] = "warning"
+                    ajaxdict["data"] = html_output
+                    response = dumps(ajaxdict)
+                    result['response'] = response
+                    result['status'] = 400
+                    return result
+                ajaxdict["data"] = html_output
                 response = dumps(ajaxdict)
                 result['response'] = response
                 result['status'] = 200
